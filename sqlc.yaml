@@ -1,0 +1,9 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "./sql/queries"
+    schema: "./sql/schema"
+    gen:
+      python:
+        package: "src.shortener_url.db.sqlc"
+        out: "src/shortener_url/db"
