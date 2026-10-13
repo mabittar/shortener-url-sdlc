@@ -1,8 +1,13 @@
 version: "3.9"
 
+# URL Shortener API with LGTM Observability Stack
+# Services: PostgreSQL, Redis, FastAPI App, Loki, Grafana, Tempo, Mimir
+
 services:
+  # === Application Stack ===
+
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18.4
     container_name: shortener-db
     environment:
       POSTGRES_USER: shortener_user
@@ -19,7 +24,7 @@ services:
       retries: 5
 
   redis:
-    image: redis:7-alpine
+    image: redis:8.10.0
     container_name: shortener-cache
     ports:
       - "6379:6379"
@@ -42,6 +47,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      tempo:
+        condition: service_started
+      loki:
+        condition: service_started
     ports:
       - "8000:8000"
     environment:
@@ -49,10 +58,165 @@ services:
       REDIS_URL: redis://redis:6379/0
       DEBUG: "false"
       LOG_LEVEL: INFO
+      # OTEL Configuration
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_SERVICE_NAME: shortener-api
+      OTEL_TRACES_EXPORTER: otlp
     volumes:
       - .:/app
     command: python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    logging:
+      driver: "json-file"
+      options:
+        labels: "service=shortener-app"
+
+  # === Observability Stack: LGTM ===
+
+  # Loki: Log aggregation
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: shortener-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    environment:
+      LOKI_CONFIG: |
+        auth_enabled: false
+        server:
+          http_listen_port: 3100
+          grpc_listen_port: 9096
+        ingester:
+          chunk_idle_period: 3m
+          max_chunk_age: 1h
+          chunk_retain_period: 1m
+          max_streams_limit_utilization: 0.9
+        limits_config:
+          enforce_metric_name: false
+          reject_old_samples: true
+          reject_old_samples_max_age: 168h
+        schema_config:
+          configs:
+            - from: 2020-10-24
+              store: boltdb-shipper
+              object_store: filesystem
+              schema: v11
+              index:
+                prefix: index_
+                period: 24h
+        storage_config:
+          filesystem:
+            directory: /loki/chunks
+          boltdb_shipper:
+            active_index_directory: /loki/boltdb-shipper-active
+            shared_store: filesystem
+            directory: /loki/boltdb-shipper
+
+  # Tempo: Distributed tracing (OpenTelemetry)
+  tempo:
+    image: grafana/tempo:2.3.0
+    container_name: shortener-tempo
+    ports:
+      - "3200:3200"
+      - "4317:4317"  # OTLP gRPC receiver
+      - "4318:4318"  # OTLP HTTP receiver
+    volumes:
+      - tempo_data:/var/tempo
+    command:
+      - "-config.file=/etc/tempo.yaml"
+    environment:
+      TEMPO_CONFIG: |
+        server:
+          http_listen_port: 3200
+          grpc_listen_port: 4317
+        distributor:
+          receivers:
+            otlp:
+              protocols:
+                gRPC:
+                  endpoint: 0.0.0.0:4317
+                http:
+                  endpoint: 0.0.0.0:4318
+        ingester:
+          max_block_duration: 5m
+        compactor:
+          compaction:
+            compaction_window: 1h
+            max_compaction_objects: 6
+            block_retention: 1h
+            compacted_block_retention: 10m
+        storage:
+          trace:
+            backend: local
+            local:
+              path: /var/tempo/traces
+        metrics_generator:
+          registry:
+            external_labels:
+              cluster: shortener
+          storage:
+            path: /var/tempo/metrics
+
+  # Mimir: Prometheus-compatible metrics storage
+  mimir:
+    image: grafana/mimir:2.10.0
+    container_name: shortener-mimir
+    ports:
+      - "9009:9009"
+    volumes:
+      - mimir_data:/data
+    command: -config.file=/etc/mimir-config.yaml
+    environment:
+      MIMIR_CONFIG: |
+        server:
+          http_listen_port: 9009
+          log_level: info
+        distributor:
+          ring:
+            kvstore:
+              store: inmemory
+        ingester:
+          max_global_series_per_user: 10000
+        limits:
+          enforce_metric_name: false
+          ingestion_rate: 10000
+          max_global_series_per_user: 10000
+        storage:
+          engine: blocks
+          filesystem:
+            dir: /data
+
+  # Grafana: Visualization and dashboards
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: shortener-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      # Uncomment after creating provisioning files:
+      # - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      # - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+    depends_on:
+      - loki
+      - tempo
+      - mimir
 
 volumes:
   postgres_data:
   redis_data:
+  loki_data:
+  tempo_data:
+  mimir_data:
+  grafana_data:
+
+networks:
+  default:
+    name: shortener-network

@@ -169,13 +169,118 @@
 
 ---
 
-## Observability Model
+## Observability Model (OTEL + LGTM Stack)
 
-| Signal | Tool | Purpose |
-|---|---|---|
-| Logs | Structured JSON (uvicorn + custom) | Debugging, audit |
-| Metrics | Prometheus (FastAPI middleware) | Performance, SLO tracking |
-| Traces | OTEL (FastAPI, database, cache) | Latency analysis, bottleneck identification |
+### Three Pillars of Observability
+
+| Signal | Tool | Collection | Purpose |
+|--------|------|-----------|---------|
+| **Logs** | Loki | Structured JSON from FastAPI | Debugging, audit trail, event correlation |
+| **Metrics** | Mimir | Prometheus scrape from `/metrics` | Performance tracking, SLO monitoring, alerting |
+| **Traces** | Tempo | OTLP gRPC from OTEL SDK | Distributed tracing, latency analysis, bottleneck identification |
+
+### LGTM Stack Ports & Access
+
+| Service | Port | Access |
+|---------|------|--------|
+| **Grafana** (visualizations) | 3000 | http://localhost:3000 (admin/admin) |
+| **Loki** (logs) | 3100 | http://localhost:3100 |
+| **Tempo** (traces) | 3200 | http://localhost:3200 |
+| **Mimir** (metrics) | 9009 | http://localhost:9009 |
+| **OTEL Receiver** (gRPC) | 4317 | http://localhost:4317 |
+
+### OpenTelemetry Instrumentation
+
+**FastAPI:**
+- All HTTP requests traced (method, path, status, duration)
+- Request/response payload size
+- User ID, API key (non-sensitive attributes)
+
+**Database (SQLC):**
+- SQL queries traced (operation, table, rows affected, duration)
+- Connection pool utilization
+
+**Redis:**
+- Cache operations traced (get, set, delete, duration)
+- Cache hit/miss rates
+
+**Custom Business Metrics:**
+- Counter: `short_urls.created` (per user, per day)
+- Counter: `redirects.total` (per short_code, per day)
+- Counter: `auth.login.attempts` (per email, success/failure)
+- Gauge: `cache.hit_rate` (percentage)
+- Histogram: `http.request.duration` (latency distribution)
+- Histogram: `db.query.duration` (query latency)
+
+### Grafana Dashboards (5 Total)
+
+1. **Overview Dashboard**
+   - Request rate (req/s)
+   - Error rate (%)
+   - P50, P95, P99 latency
+   - Cache hit rate
+
+2. **Authentication Dashboard**
+   - Login success/failure rates
+   - Rate limit locks per hour
+   - Failed attempts by email
+   - Signup rate
+
+3. **URL Shortening Dashboard**
+   - URLs created per hour
+   - Redirect latency (p99)
+   - Cache hit rate
+   - Redirect throughput
+
+4. **Infrastructure Dashboard**
+   - Postgres connection pool utilization
+   - Redis memory usage
+   - Disk I/O
+   - CPU usage
+
+5. **Distributed Traces (Tempo)**
+   - Trace search by service, operation, duration
+   - Critical path analysis
+   - Dependency graph: FastAPI → DB → Redis
+
+### Structured JSON Logging
+
+**Format:** Each log entry contains
+- `timestamp` (ISO 8601)
+- `level` (DEBUG, INFO, WARN, ERROR)
+- `logger` (module/class name)
+- `message` (human-readable)
+- `trace_id` (for correlation with traces)
+- `span_id` (for correlation with spans)
+- `user_id` (if authenticated)
+- `duration_ms` (request/operation duration)
+- Context-specific fields (email, short_code, error_type, etc.)
+
+**Example:**
+```json
+{
+  "timestamp": "2026-10-12T10:30:45.123Z",
+  "level": "INFO",
+  "logger": "app.controllers.auth",
+  "message": "User login successful",
+  "user_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "email": "user@example.com",
+  "ip_address": "192.168.1.1",
+  "duration_ms": 145,
+  "trace_id": "abc123def456ghi789jkl012mno345pq",
+  "span_id": "span789xyz"
+}
+```
+
+### Alert Rules (via Mimir)
+
+| Alert | Condition | Severity |
+|-------|-----------|----------|
+| **High Error Rate** | >5% errors over 5 min | Critical |
+| **DB Connection Pool** | >90% utilization | Critical |
+| **Redis Memory** | >80% used | Warning |
+| **Slow Redirects** | p99 > 100ms | Warning |
+| **Auth Rate Limit Spike** | >100 locks/hour | Warning |
 
 ---
 
