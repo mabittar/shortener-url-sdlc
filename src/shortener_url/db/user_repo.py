@@ -4,7 +4,7 @@ from uuid import UUID
 import asyncpg
 from datetime import datetime
 
-from app.models.user import (
+from src.shortener_url.models.user import (
     User,
     UserCreated,
     UserAuthLookup,
