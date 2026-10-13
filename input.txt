@@ -1,0 +1,201 @@
+A URL shortener service creates a short url/aliases/tiny url against a long url.Moreover, when user click on the tiny url, he gets redirected to original url.
+
+Tiny url are exceedingly handy to share through sms/tweets (where there is limit to number of characters that can be messaged/tweeted) and also when they are printed in books/magazines etc.(Less character implies less printing cost). In addition, it is easy and less error prone to type a short url when compared to its longer version.
+
+examples:
+Long URL: https://medium.com/@sandeep4.verma
+Short URL : https://tinyurl.com/3sh2ps6v
+
+
+Yes user can create a tiny url of his/her choice. Assume maximum character limit to be 16.
+
+Every url expires after 1 month.
+
+Service should also aggregate metrics like number of URL redirections per day and other analytics for targeted advertisements.
+
+System Design goals
+Functional Requirements:
+
+Service should be able to create shortened url/links against a long url
+Click to the short URL should redirect the user to the original long URL
+Shortened link should be as small as possible
+Users can create custom url with maximum character limit of 16
+Service should collect metrics like most clicked links
+
+Non-Functional Requirements:
+
+Service should be up and running all the time
+URL redirection should be fast and should not degrade at any point of time (Even during peak loads)
+Service should expose REST API’s so that it can be integrated with third party applications
+
+Traffic
+Assuming 200:1 read/write ratio
+
+Number of unique shortened links generated per month = 100 million
+
+Number of unique shortened links generated per seconds = 100 million /(30 days * 24 hours * 3600 seconds ) ~ 40 URLs/second
+
+Memory
+Following Pareto Principle, better known as the 80:20 rule for caching. (80% requests are for 20% data)
+
+Since we get 8000 read/redirection requests per second, we will be getting 700 million requests per day
+
+Algorithm REST Endpoints
+create( long_url, api_key, custom_url)
+
+long_url: A long URL that needs to be shortened.
+
+api_key: A unique API key provided to each user, to protect from the spammers, access, and resource control for the user, etc.
+
+custom_url(optional): The custom short link URL, user want to use.
+
+Return Value: The short Url generated, or error code in case of the inappropriate parameter.
+
+GET: /{short_url}
+Return a http redirect response(302)
+
+Note : “HTTP 302 Redirect” status is sent back to the browser instead of “HTTP 301 Redirect”. A 301 redirect means that the page has permanently moved to a new location. A 302 redirect means that the move is only temporary. Thus, returning 302 redirect will ensure all requests for redirection reaches to our backend and we can perform analytics (Which is a functional requirement)
+
+short_url: The short URL generated from the above function.
+
+Return Value: The original long URL, or invalid URL error code.
+
+Database Schema
+Let’s see the data we need to store:
+
+Data Related to user
+
+User ID: A unique user id or API key to make user globally distinguishable
+Name: The name of the user
+Email: The email id of the user
+Creation Date: The date on which the user was registered
+Data Related to ShortLink
+
+Short Url: 6/7 character long unique short URL
+Original Url: The original long URL
+UserId: The unique user id or API key of the user who created the short URL
+
+Shortening Algorithm
+For shortening a url we can use following two solutions (URL encoding and Key Generation service). Let’s walk through each of them one by one.
+
+a.) URL Encoding
+
+i.) URL encoding through base62
+
+ii) URL encoding through MD5
+
+b.) Key Generation Service (KGS)
+
+URL encoding through base62
+A base is a number of digits or characters that can be used to represent a particular number.
+
+MD5 hash 
+
+he MD5 message-digest algorithm is a widely used hash function producing a 128-bit hash value(or 32 hexadecimal digits). We can use these 32 hexadecimal digit for generating 7 characters long tiny url.
+
+Encode the long URL using the MD5 algorithm and take only the first 7 characters to generate TinyURL.
+The first 7 characters could be the same for different long URLs so check the DB to verify that TinyURL is not used already
+Try next 7 characters of previous choice of 7 characters already exist in DB and continue until you find a unique value
+
+Infrastructure
+
+Ngnx
+Postgres
+Redis
+Docker
+DockerCompose
+OTEL
+LGTM (lokim grafana trace mimir)
+
+Convenções:
+- camadas padrão model, sevice, controller, Infrastructure
+- toda entrada externa deve ser validada usando pydantic
+- erros de domínio são classes traduzidas na borda
+- lógica nova nasce primeiro com teste
+- nunca commitar secrets ou ler o arquivo .env
+
+Fluxo:
+Siga o SDLC da máquina.
+Garanta que o .vscode/settings.json e launch.json sejam suficientes para executar o projeto.
+Não vamos trabalhar com de dev containers.
+
+
+**Stack**: FastAPI, SQLC e avalie a necessidade do SQLAlchemy 2.0 (async), Psycopg 3, Pydantic v2, Redis
+
+use o arquivo pyproject.toml para configuração das dependencias.
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.10.0",
+    "ruff>=0.11.0",
+    "mypy>=1.6.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "--cov=app --cov-report=html --cov-report=term"
+
+[tool.black]
+line-length = 100
+target-version = ["py313"]
+
+
+# Ruff configuration
+# * See https://beta.ruff.rs/docs/
+[tool.ruff]
+line-length = 100
+indent-width = 4
+exclude = ["__init__.py"]
+
+[tool.ruff.lint]
+select = [
+    "F",   # pyflakes
+    "E",   # pycodestyle
+    "W",   # whitespace and newlines
+    "I",   # isort
+    "UP",  # modernize
+    "ANN", # flake8 type annotations
+    "S",   # flake8 bandit
+    "B",   # flake8 bugbear
+    "C4",  # flake8 comprehensions
+    "COM", # flake8 commas
+    "T20", # flake8 print
+    "SIM", # flake8 simplify
+    "ARG", # flake8 unused arguments
+    "DTZ", # flake8 datetimes
+    "Q",   # flake8 quotes
+    "TCH", # flake8 typecheck
+    "D",   # pydocstyle
+    "RUF", # ruff-specific rules
+]
+fixable = ["ALL"]
+ignore = [
+    "D203", "D213", "D215", "D400", "D401", "D404", "D406",
+    "D407", "D408", "D409", "D413","COM812","ISC001",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"test*" = ["D", "ANN"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+docstring-code-format = true
+docstring-code-line-length = 100
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
