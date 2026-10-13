@@ -94,47 +94,48 @@ shortener-url/
 ## 📊 Phase Breakdown
 
 ### Phase 0: Setup ✅
-- Git init, venv, dependencies, skeleton
+- Git init, venv, dependencies, skeleton, SDLC docs
 
 ### Phase 1: Foundation (Week 1)
-**Spec:** Models, database schema, sqlc queries
+**Spec:** User model (UUID v7, email unique, password hash, api_key), ShortUrl model, database schema, SQLC queries
 ```
-/spec "Define User, ShortUrl models, database schema, sqlc queries"
+/spec "Phase 1: Define User model (UUID v7, email unique, password_hash bcrypt, api_key), ShortUrl model (user_id FK, short_code=base62(user_id[:5]+random)), database schema (PostgreSQL 18), SQLC queries"
+```
+
+### Phase 1.5: User Management & Authentication (~2 days)
+**Spec:** signup, login, password reset with magic-link
+```
+/spec "Phase 1.5: Implement user authentication (signup: email+password→api_key, login: email+password→api_key, password-reset: magic-link flow, password hashing with bcrypt)"
 ```
 
 ### Phase 2: Core API (Week 1-2)
-**Spec:** POST /shorten, GET /{short_url}
+**Spec:** POST /shorten (requires API Key), GET /{short_url} (302 redirect + click tracking)
 ```
-/spec "Implement POST /shorten endpoint with auto-generated base62 short code"
-/spec "Implement GET /{short_url} endpoint with 302 redirect"
+/spec "Phase 2: Implement POST /shorten (requires API Key, generates short_code from user_id[:5]+random) and GET /{short_url} (302 redirect to original URL + click tracking)"
 ```
 
 ### Phase 3: Advanced Features (Week 2-3)
-**Spec:** Custom URLs, expiry, click tracking
+**Spec:** Custom URLs, expiry (1 month), click tracking aggregation, metrics endpoint
 ```
-/spec "Add custom URL support with uniqueness validation (max 16 chars)"
-/spec "Implement URL expiry after 1 month with soft delete"
-/spec "Add click tracking and daily metrics aggregation"
+/spec "Phase 3: Add custom URL support (max 16 chars, unique validation), URL expiry after 1 month (soft delete), click tracking by day, GET /shorten/{short_url}/metrics endpoint"
 ```
 
 ### Phase 4: Caching & Optimization (Week 3)
-**Spec:** Redis integration, connection pooling
+**Spec:** Redis cache for URL lookups (80/20 Pareto)
 ```
-/spec "Implement Redis cache for URL lookups (80/20 Pareto rule)"
+/spec "Phase 4: Implement Redis cache for URL lookups (80/20 Pareto rule), cache invalidation on update/delete, target p99 latency < 100ms"
 ```
 
 ### Phase 5: Infrastructure & Observability (Week 4)
-**Spec:** Docker, Nginx, OTEL, structured logging
+**Spec:** Docker, OTEL, structured JSON logging
 ```
-/spec "Setup Docker + docker-compose for PostgreSQL + Redis + Nginx"
-/spec "Add OTEL instrumentation and structured JSON logging"
+/spec "Phase 5: Setup Docker image + docker-compose (PostgreSQL v18, Redis, app), add OTEL instrumentation (FastAPI, database, cache), implement structured JSON logging"
 ```
 
 ### Phase 6: Testing & Security (Week 4)
-**Spec:** Full test suite, load testing, OWASP mitigations
+**Spec:** Full test suite (>80% coverage), load testing (8000 req/s), OWASP mitigations
 ```
-/spec "Write unit + integration + E2E tests with > 80% coverage"
-/spec "Implement load testing for 8000 concurrent redirects/second"
+/spec "Phase 6: Write unit + integration + E2E tests (target >80% coverage), implement load testing for 8000 concurrent redirects/second, add OWASP Top 10 mitigations (input validation, rate limiting, etc.)"
 ```
 
 ---

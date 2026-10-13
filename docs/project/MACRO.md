@@ -79,41 +79,68 @@
 
 ## Data Model
 
-### User
-- `id` (UUID)
-- `api_key` (unique string, hashed)
-- `name`
-- `created_at`
+### User (UUID v7 as PK)
+- `id` (UUID v7, PK, native PostgreSQL 18)
+- `email` (VARCHAR(255), unique, not null)
+- `password_hash` (VARCHAR(255), bcrypt, not null)
+- `api_key` (VARCHAR(64), unique, auto-generated)
+- `name` (VARCHAR(255))
+- `email_verified` (BOOL, default false)
+- `password_reset_token` (VARCHAR(255), nullable) ← for magic-link flow
+- `password_reset_expires` (TIMESTAMP, nullable)
+- `created_at` (TIMESTAMP, default now())
+- `updated_at` (TIMESTAMP, default now())
+- `is_active` (BOOL, default true)
 
 ### ShortUrl
-- `id` (UUID)
-- `user_id` (FK)
-- `original_url` (TEXT)
-- `short_code` (VARCHAR(16), unique)
-- `click_count` (INT)
-- `created_at`
-- `updated_at`
-- `expires_at` (nullable, default +1 month)
-- `is_active` (BOOL, soft delete)
+- `id` (UUID v7, PK)
+- `user_id` (UUID v7, FK → User.id)
+- `original_url` (TEXT, not null)
+- `short_code` (VARCHAR(16), unique, not null)
+  - **Algorithm:** `base62(user_id[:5] + random_digits)`
+  - Example: If user_id = `a1b2c3d4-e5f6...`, user_id[:5] = `a1b2c`
+  - Random part: 6-10 random digits
+  - Result: `a1b2c` + random → `a1b2c` + `3x4y5z` = `a1b2c3x4y5z`
+- `click_count` (INT, default 0)
+- `created_at` (TIMESTAMP, default now())
+- `updated_at` (TIMESTAMP, default now())
+- `expires_at` (TIMESTAMP, default now() + 1 month)
+- `is_active` (BOOL, default true, soft delete)
 
-### Analytics (optional materialized view)
+### Analytics (Materialized View or Aggregated Table)
 - `date` (DATE)
-- `short_url_id` (FK)
+- `short_url_id` (UUID v7, FK)
+- `user_id` (UUID v7, FK)
 - `click_count` (INT)
+- `created_at` (TIMESTAMP)
 
 ---
 
 ## API Surface
 
+### Authentication (Phase 1.5)
 | Endpoint | Method | Purpose | Auth | Notes |
 |---|---|---|---|---|
-| `POST /shorten` | POST | Create short URL | API Key | Returns 201, Location header |
-| `GET /{short_url}` | GET | Redirect to original | None (public) | Returns 302 Found, no 301 |
-| `DELETE /shorten/{short_url}` | DELETE | Soft delete URL | API Key | Returns 204 |
-| `GET /shorten/{short_url}/metrics` | GET | View click analytics | API Key | Returns daily aggregates |
-| `GET /health` | GET | Health check | None | Returns 200 + status |
-| `GET /docs` | GET | Swagger UI | None | Interactive API docs |
-| `GET /redoc` | GET | ReDoc | None | Alternative API docs |
+| `POST /auth/signup` | POST | Register new user | None | Input: email, password, name |
+| `POST /auth/login` | POST | Login (email + password) | None | Returns: api_key, user data |
+| `POST /auth/password-reset-request` | POST | Request magic-link | None | Input: email; sends magic-link via email |
+| `POST /auth/password-reset` | POST | Reset password with token | None | Input: reset_token, new_password |
+| `POST /auth/verify-email` | POST | Verify email address | None | Input: verification_token (optional) |
+
+### URL Shortening (Phase 2+)
+| Endpoint | Method | Purpose | Auth | Notes |
+|---|---|---|---|---|
+| `POST /shorten` | POST | Create short URL | API Key / Bearer | Returns 201, short_code generated: user_id[:5] + random |
+| `GET /{short_url}` | GET | Redirect to original | None (public) | Returns 302 Found, tracks click |
+| `DELETE /shorten/{short_url}` | DELETE | Soft delete URL | API Key / Bearer | Returns 204 |
+| `GET /shorten/{short_url}/metrics` | GET | View click analytics | API Key / Bearer | Returns daily click aggregates |
+
+### Health & Documentation
+| Endpoint | Method | Purpose | Auth | Notes |
+|---|---|---|---|---|
+| `GET /health` | GET | Health check (K8s liveness) | None | Returns 200 + status |
+| `GET /docs` | GET | Swagger UI | None | Interactive API explorer |
+| `GET /redoc` | GET | ReDoc | None | Static API documentation |
 
 ---
 
@@ -128,12 +155,17 @@
 
 ## Security Considerations
 
-1. **Input Validation:** Pydantic + URL validation (OWASP)
-2. **API Key Auth:** Simple header validation or JWT (Phase 3)
-3. **SQL Injection:** SQLC eliminates dynamic SQL
-4. **Rate Limiting:** Per API key (Phase 3)
-5. **CORS:** Configured in FastAPI
-6. **Secrets Management:** .env, no hardcoded values
+1. **Password Hashing:** bcrypt (salted, slow hash, resistant to GPU attacks)
+2. **API Key Auth:** Unique per user, stored as VARCHAR, validated per request
+3. **Bearer Token (JWT):** Optional, for stateless auth (Phase 3)
+4. **Email Verification:** Magic-link flow (email service out of scope)
+5. **Password Reset:** Magic-link with TTL (15 min), invalidate after use
+6. **Input Validation:** Pydantic + URL validation (OWASP)
+7. **SQL Injection:** SQLC eliminates dynamic SQL
+8. **Rate Limiting:** Per API key + per IP (Phase 3)
+9. **CORS:** Configured in FastAPI
+10. **Secrets Management:** .env, no hardcoded values, never log passwords/keys
+11. **Account Lockout:** Optional, lock after N failed login attempts (Phase 3)
 
 ---
 
