@@ -2,7 +2,7 @@
 
 import pytest
 import asyncpg
-from src.shortener_url.config import settings
+from src.config import settings
 
 
 @pytest.mark.asyncio
