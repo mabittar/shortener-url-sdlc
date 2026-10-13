@@ -4,6 +4,6 @@ sql:
     queries: "./sql/queries"
     schema: "./sql/schema"
     gen:
-      python:
-        package: "src.shortener_url.db.sqlc"
-        out: "src/shortener_url/db"
+      go:
+        package: "db"
+        out: "internal/db"
