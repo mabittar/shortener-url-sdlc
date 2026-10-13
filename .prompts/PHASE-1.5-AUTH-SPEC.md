@@ -18,7 +18,7 @@ Response (201 Created):
     "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "email": "user@example.com",
     "name": "John Doe",
-    "api_key": "<sk_live_placeholder>",
+    "api_key": "<sk_live_placeholder><generated_at_runtime>",
     "created_at": "2026-10-12T10:30:00Z"
   }
 
@@ -38,7 +38,7 @@ Request:
 
 Response (200 OK):
   {
-    "api_key": "<sk_live_placeholder>",
+    "api_key": "<sk_live_placeholder><generated_at_runtime>",
     "user": {
       "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
       "email": "user@example.com",
