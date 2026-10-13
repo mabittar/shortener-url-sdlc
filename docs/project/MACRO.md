@@ -9,10 +9,11 @@
 
 ## Business Goals
 
-1. **Create shortened URLs** from long URLs for sharing in character-limited platforms
-2. **Fast redirects** with metrics collection for analytics
-3. **Custom aliases** with user control (optional)
-4. **Reliability** - high uptime, consistent performance
+1. **REST API Service** for third-party clients to shorten URLs
+2. **Fast redirects** (302, not 301) with click tracking for analytics
+3. **Custom aliases** support (max 16 chars) with uniqueness validation
+4. **High availability & performance** — 8000 req/s, p99 < 100ms
+5. **Observability** — OTEL tracing, structured logging, metrics
 
 ---
 
@@ -104,20 +105,23 @@
 
 ## API Surface
 
-| Endpoint | Method | Purpose | Auth |
-|---|---|---|---|
-| `/shorten` | POST | Create short URL | API Key |
-| `/{short_url}` | GET | Redirect to original | None (public) |
-| `/shorten/{short_url}` | DELETE | Soft delete URL | API Key |
-| `/metrics/{short_url}` | GET | View click analytics | API Key |
-| `/health` | GET | Health check | None |
+| Endpoint | Method | Purpose | Auth | Notes |
+|---|---|---|---|---|
+| `POST /shorten` | POST | Create short URL | API Key | Returns 201, Location header |
+| `GET /{short_url}` | GET | Redirect to original | None (public) | Returns 302 Found, no 301 |
+| `DELETE /shorten/{short_url}` | DELETE | Soft delete URL | API Key | Returns 204 |
+| `GET /shorten/{short_url}/metrics` | GET | View click analytics | API Key | Returns daily aggregates |
+| `GET /health` | GET | Health check | None | Returns 200 + status |
+| `GET /docs` | GET | Swagger UI | None | Interactive API docs |
+| `GET /redoc` | GET | ReDoc | None | Alternative API docs |
 
 ---
 
 ## Deployment Model
 
 - **Local Dev:** docker-compose (PostgreSQL, Redis, app)
-- **Production:** Docker image, Postgres managed service, Redis managed service, Nginx reverse proxy
+- **Production:** Docker image, PostgreSQL managed service, Redis managed service
+- **Load Balancing:** Kubernetes or AWS ALB (external to this service)
 - **CI/CD:** GitHub Actions (test, lint, build, push image)
 
 ---

@@ -1,6 +1,8 @@
-# URL Shortener
+# URL Shortener API
 
-A fast and simple URL shortener service built with FastAPI.
+A high-performance REST API service for creating and managing shortened URLs. Built with FastAPI, PostgreSQL, and Redis.
+
+**Backend only** — Designed for third-party clients to integrate via REST API.
 
 ## Project Structure
 
@@ -103,9 +105,31 @@ sqlc generate
 
 ## API Documentation
 
-Once the server is running:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+Once the server is running, open:
+- **Swagger UI (interactive):** http://localhost:8000/docs
+- **ReDoc (static):** http://localhost:8000/redoc
+
+### Quick Examples
+
+**Create short URL:**
+```bash
+curl -X POST http://localhost:8000/shorten \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -d '{"long_url": "https://example.com/very/long/path"}'
+```
+
+**Redirect to original:**
+```bash
+curl -L http://localhost:8000/abc123
+# Follows 302 redirect to original URL
+```
+
+**View metrics:**
+```bash
+curl http://localhost:8000/shorten/abc123/metrics \
+  -H "X-API-Key: your-api-key"
+```
 
 ## License
 

@@ -20,15 +20,19 @@
 ## Phase Dependencies
 
 ```
-Phase 0 ✅
+Phase 0 ✅ (Setup complete)
     ↓
-Phase 1 (Foundation models)
+Phase 1 (Foundation: Models + Schema + SQLC)
     ↓
-Phase 2 (Core API)
+Phase 2 (Core API: POST /shorten + GET /{short_url} with 302 redirect)
     ↓
 Phases 3-4 (parallel: Features + Caching)
+    ├─ Phase 3: Custom URLs + Expiry + Click Tracking
+    └─ Phase 4: Redis Cache (80/20 Pareto)
     ↓
 Phases 5-6 (parallel: Infrastructure + Testing)
+    ├─ Phase 5: Docker + OTEL + Structured Logging
+    └─ Phase 6: Full Test Suite + Load Testing + OWASP
 ```
 
 ---
